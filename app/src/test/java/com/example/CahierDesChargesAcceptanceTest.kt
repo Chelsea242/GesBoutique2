@@ -351,4 +351,60 @@ class CahierDesChargesAcceptanceTest {
         assertTrue(repo.produitsAvecStockFlow.first().isEmpty())
         assertTrue(dbHolder.listBackups().isNotEmpty())
     }
+
+    @Test
+    fun `rapport_complet_agrege_paiements_jours_panier_moyen_et_exclut_annulations`() = runBlocking {
+        setupAdmin()
+        val p1 = (repo.createProduct("RP-1", "Eau 1.5L", null, 500L, 5, 50) as ServiceResult.Succes).data
+        val p2 = (repo.createProduct("RP-2", "Jus 1L", null, 1500L, 5, 50) as ServiceResult.Succes).data
+
+        val jour1 = fakeNowMillis
+        // Vente 1 : 2 x Eau (1000) Espèces
+        val s1 = (repo.validateSale(
+            listOf(PanierLigneInput(p1.id, p1.reference, p1.nom, 500L, 2)),
+            ModePaiement.ESPECES,
+            1000L,
+            UUID.randomUUID().toString()
+        ) as ValidationVenteResult.Succes).vente
+        val date1 = s1.vente.dateMetier
+
+        // Vente 2 (sera annulée) : 2 x Jus (3000) Carte
+        val s2Cancelled = (repo.validateSale(
+            listOf(PanierLigneInput(p2.id, p2.reference, p2.nom, 1500L, 2)),
+            ModePaiement.CARTE,
+            3000L,
+            UUID.randomUUID().toString()
+        ) as ValidationVenteResult.Succes).vente
+        assertTrue(repo.cancelSale(s2Cancelled.vente.id, "Annulation test") is ServiceResult.Succes)
+
+        // Vente 3 (Jour 2) : 2 x Jus (3000) Mobile Money
+        fakeNowMillis = jour1 + 86_400_000L
+        val s3 = (repo.validateSale(
+            listOf(PanierLigneInput(p2.id, p2.reference, p2.nom, 1500L, 2)),
+            ModePaiement.MOBILE_MONEY,
+            3000L,
+            UUID.randomUUID().toString()
+        ) as ValidationVenteResult.Succes).vente
+        val date2 = s3.vente.dateMetier
+
+        val res = repo.getRapportComplet(date1, date2)
+        assertTrue(res is ServiceResult.Succes)
+        val r = (res as ServiceResult.Succes).data
+
+        assertEquals(4000L, r.totalValide)
+        assertEquals(2, r.nombreVentesValidees)
+        assertEquals(4, r.totalUnites)
+        assertEquals(2000L, r.panierMoyen)
+        assertEquals(1, r.nombreAnnulations)
+        assertEquals(3000L, r.montantAnnulations)
+        assertEquals(2, r.lignesProduits.size)
+        assertEquals(2, r.lignesJours.size)
+
+        val especes = r.repartitionPaiements.first { it.mode == ModePaiement.ESPECES }
+        val momo = r.repartitionPaiements.first { it.mode == ModePaiement.MOBILE_MONEY }
+        val carte = r.repartitionPaiements.first { it.mode == ModePaiement.CARTE }
+        assertEquals(1000L, especes.montant)
+        assertEquals(3000L, momo.montant)
+        assertEquals(0L, carte.montant)
+    }
 }

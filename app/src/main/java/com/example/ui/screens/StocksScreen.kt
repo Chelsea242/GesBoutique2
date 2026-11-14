@@ -21,7 +21,9 @@ import com.example.data.*
 import com.example.domain.Formatters
 import com.example.ui.StockFilterMode
 import com.example.ui.components.EmptyStateCard
+import com.example.ui.components.PillTabItem
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.SegmentedPillTabs
 import com.example.ui.components.StockStatusBadge
 import com.example.ui.theme.*
 
@@ -67,24 +69,23 @@ fun StocksScreen(
             subtitle = "Calculé par agrégation des mouvements signés"
         )
 
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = tabIndex == 0,
-                onClick = { tabIndex = 0 },
-                shape = SegmentedButtonDefaults.itemShape(0, 2),
-                modifier = Modifier.testTag("stocks_tab_disponibilites")
-            ) {
-                Text("Disponibilités")
-            }
-            SegmentedButton(
-                selected = tabIndex == 1,
-                onClick = { tabIndex = 1 },
-                shape = SegmentedButtonDefaults.itemShape(1, 2),
-                modifier = Modifier.testTag("stocks_tab_mouvements")
-            ) {
-                Text("Mouvements (${mouvements.size})")
-            }
-        }
+        SegmentedPillTabs(
+            items = listOf(
+                PillTabItem(
+                    label = "Disponibilités",
+                    icon = Icons.Filled.Warehouse,
+                    testTag = "stocks_tab_disponibilites"
+                ),
+                PillTabItem(
+                    label = "Mouvements",
+                    icon = Icons.Filled.SwapVert,
+                    badge = "${mouvements.size}",
+                    testTag = "stocks_tab_mouvements"
+                )
+            ),
+            selectedIndex = tabIndex,
+            onSelect = { tabIndex = it }
+        )
 
         if (tabIndex == 0) {
             OutlinedTextField(

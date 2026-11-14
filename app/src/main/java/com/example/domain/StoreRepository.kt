@@ -891,6 +891,60 @@ class StoreRepository(
         return ServiceResult.Succes(cancelled.size to cancelled.sumOf { it.total })
     }
 
+    suspend fun getRapportComplet(dateDebut: String, dateFin: String): ServiceResult<RapportPeriodeComplet> {
+        requireAdmin() ?: return ServiceResult.Erreur("Accès refusé : les rapports globaux sont réservés à l'administrateur.")
+        if (dateDebut > dateFin) return ServiceResult.Erreur("La date de début doit précéder la date de fin.")
+
+        val database = db()
+        val lignesProduits = database.venteDao().getRapportProduits(dateDebut, dateFin)
+        val ventesPeriode = database.venteDao().getVentesSurPeriode(dateDebut, dateFin)
+
+        val validees = ventesPeriode.filter { it.statut == StatutVente.VALIDEE.name }
+        val annulees = ventesPeriode.filter { it.statut == StatutVente.ANNULEE.name }
+
+        val totalValide = validees.sumOf { it.total }
+        val nbValidees = validees.size
+        val totalUnites = lignesProduits.sumOf { it.unitesVendues }
+        val panierMoyen = if (nbValidees > 0) totalValide / nbValidees else 0L
+
+        val lignesJours = validees
+            .groupBy { it.dateMetier }
+            .entries
+            .sortedByDescending { it.key }
+            .map { (date, list) ->
+                RapportJourLigne(
+                    dateMetier = date,
+                    nombreVentes = list.size,
+                    montantVendu = list.sumOf { it.total }
+                )
+            }
+
+        val repartitionPaiements = ModePaiement.entries.map { mode ->
+            val matching = validees.filter { it.modePaiement == mode.name }
+            RapportPaiementLigne(
+                mode = mode,
+                nombreVentes = matching.size,
+                montant = matching.sumOf { it.total }
+            )
+        }
+
+        return ServiceResult.Succes(
+            RapportPeriodeComplet(
+                dateDebut = dateDebut,
+                dateFin = dateFin,
+                totalValide = totalValide,
+                nombreVentesValidees = nbValidees,
+                totalUnites = totalUnites,
+                panierMoyen = panierMoyen,
+                lignesProduits = lignesProduits,
+                lignesJours = lignesJours,
+                repartitionPaiements = repartitionPaiements,
+                nombreAnnulations = annulees.size,
+                montantAnnulations = annulees.sumOf { it.total }
+            )
+        )
+    }
+
     suspend fun exportSalesCsv(
         ventes: List<VenteAvecVendeur>,
         outputStream: OutputStream

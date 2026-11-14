@@ -26,8 +26,10 @@ import com.example.data.*
 import com.example.domain.Formatters
 import com.example.ui.CartItem
 import com.example.ui.components.EmptyStateCard
+import com.example.ui.components.PillTabItem
 import com.example.ui.components.ReceiptDialog
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.SegmentedPillTabs
 import com.example.ui.components.StockStatusBadge
 import com.example.ui.theme.*
 
@@ -130,24 +132,24 @@ fun NewSaleScreen(
                     subtitle = "$totalUnits article(s) • Total : ${Formatters.formatMontant(total, parametres.devise)}"
                 )
 
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    SegmentedButton(
-                        selected = mobileTabIndex == 0,
-                        onClick = { mobileTabIndex = 0 },
-                        shape = SegmentedButtonDefaults.itemShape(0, 2),
-                        modifier = Modifier.testTag("sale_tab_catalog")
-                    ) {
-                        Text("Produits (${activeProducts.size})")
-                    }
-                    SegmentedButton(
-                        selected = mobileTabIndex == 1,
-                        onClick = { mobileTabIndex = 1 },
-                        shape = SegmentedButtonDefaults.itemShape(1, 2),
-                        modifier = Modifier.testTag("sale_tab_cart")
-                    ) {
-                        Text("Panier ($totalUnits)")
-                    }
-                }
+                SegmentedPillTabs(
+                    items = listOf(
+                        PillTabItem(
+                            label = "Produits",
+                            icon = Icons.Filled.Inventory2,
+                            badge = "${activeProducts.size}",
+                            testTag = "sale_tab_catalog"
+                        ),
+                        PillTabItem(
+                            label = "Panier",
+                            icon = Icons.Filled.ShoppingCart,
+                            badge = "$totalUnits",
+                            testTag = "sale_tab_cart"
+                        )
+                    ),
+                    selectedIndex = mobileTabIndex,
+                    onSelect = { mobileTabIndex = it }
+                )
 
                 if (mobileTabIndex == 0) {
                     Box(modifier = Modifier.weight(1f)) {

@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 // Palette alignée sur le cahier des charges (fond clair, contraste élevé, statuts lisibles)
 val AppBackground = Color(0xFFF5F7FA)
 val AppSurface = Color(0xFFFFFFFF)
+val AppSurfaceElevated = Color(0xFFFAFCFF)
 val AppSurfaceVariant = Color(0xFFEEF2F6)
 val AppOutline = Color(0xFFD1D5DB)
 val AppOutlineSubtle = Color(0xFFE5E7EB)
@@ -16,6 +17,15 @@ val TextMuted = Color(0xFF6B7280)
 val ActionBlue = Color(0xFF2563EB)
 val ActionBlueDark = Color(0xFF1D4ED8)
 val ActionBlueSoft = Color(0xFFDBEAFE)
+
+// Accents exécutifs pour bannières, graphiques et hiérarchie visuelle
+val SlateNavy = Color(0xFF0F172A)
+val SlateNavyMid = Color(0xFF1E293B)
+val CobaltDeep = Color(0xFF1E3A8A)
+val CobaltBright = Color(0xFF3B82F6)
+val EmeraldAccent = Color(0xFF059669)
+val AmberAccent = Color(0xFFD97706)
+val IndigoAccent = Color(0xFF4F46E5)
 
 // Statuts métier
 val RuptureText = Color(0xFFB91C1C)

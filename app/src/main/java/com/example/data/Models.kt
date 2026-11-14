@@ -145,6 +145,32 @@ data class RapportProduitLigne(
     val montantVendu: Long
 )
 
+data class RapportJourLigne(
+    val dateMetier: String,
+    val nombreVentes: Int,
+    val montantVendu: Long
+)
+
+data class RapportPaiementLigne(
+    val mode: ModePaiement,
+    val nombreVentes: Int,
+    val montant: Long
+)
+
+data class RapportPeriodeComplet(
+    val dateDebut: String = "",
+    val dateFin: String = "",
+    val totalValide: Long = 0L,
+    val nombreVentesValidees: Int = 0,
+    val totalUnites: Int = 0,
+    val panierMoyen: Long = 0L,
+    val lignesProduits: List<RapportProduitLigne> = emptyList(),
+    val lignesJours: List<RapportJourLigne> = emptyList(),
+    val repartitionPaiements: List<RapportPaiementLigne> = emptyList(),
+    val nombreAnnulations: Int = 0,
+    val montantAnnulations: Long = 0L
+)
+
 data class ParametresMagasin(
     val nomCommercial: String = "Mon Magasin",
     val adresse: String = "",

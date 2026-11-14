@@ -1,5 +1,7 @@
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,9 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,6 +27,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.data.RapportPeriodeComplet
 import com.example.data.RoleUtilisateur
 import com.example.data.UtilisateurEntity
 import com.example.ui.screens.*
@@ -131,8 +137,7 @@ private fun AuthenticatedShell(
 
     val rapportDebut by viewModel.rapportDebut.collectAsStateWithLifecycle()
     val rapportFin by viewModel.rapportFin.collectAsStateWithLifecycle()
-    val rapportLignes by viewModel.rapportLignes.collectAsStateWithLifecycle()
-    val rapportAnnulations by viewModel.rapportAnnulations.collectAsStateWithLifecycle()
+    val rapportComplet by viewModel.rapportComplet.collectAsStateWithLifecycle()
 
     fun navigateTo(route: String) {
         navController.navigate(route) {
@@ -223,8 +228,7 @@ private fun AuthenticatedShell(
                             completedReceipt = completedReceipt,
                             rapportDebut = rapportDebut,
                             rapportFin = rapportFin,
-                            rapportLignes = rapportLignes,
-                            rapportAnnulations = rapportAnnulations,
+                            rapportComplet = rapportComplet,
                             onNavigate = ::navigateTo
                         )
                     }
@@ -245,67 +249,101 @@ private fun AuthenticatedShell(
                     containerColor = AppBackground,
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = {
-                        TopAppBar(
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = AppSurface,
-                                titleContentColor = TextPrimary
-                            ),
-                            navigationIcon = {
-                                IconButton(
-                                    onClick = { scope.launch { drawerState.open() } },
-                                    modifier = Modifier.testTag("open_drawer_button")
-                                ) {
-                                    Icon(Icons.Filled.Menu, contentDescription = "Ouvrir le menu")
+                        Column {
+                            TopAppBar(
+                                colors = TopAppBarDefaults.topAppBarColors(
+                                    containerColor = AppSurface,
+                                    titleContentColor = TextPrimary
+                                ),
+                                navigationIcon = {
+                                    IconButton(
+                                        onClick = { scope.launch { drawerState.open() } },
+                                        modifier = Modifier.testTag("open_drawer_button")
+                                    ) {
+                                        Icon(Icons.Filled.Menu, contentDescription = "Ouvrir le menu")
+                                    }
+                                },
+                                title = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                                            Text(
+                                                parametres.nomCommercial,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                currentUser.nom,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = TextMuted,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Surface(
+                                            color = if (isAdmin) ActionBlueSoft else DisponibleBackground,
+                                            shape = RoundedCornerShape(999.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isAdmin) "Admin" else "Vendeur",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isAdmin) ActionBlueDark else DisponibleText
+                                            )
+                                        }
+                                    }
+                                },
+                                actions = {
+                                    IconButton(
+                                        onClick = viewModel::logout,
+                                        modifier = Modifier.testTag("topbar_logout_button")
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.Logout,
+                                            contentDescription = "Déconnexion",
+                                            tint = TextSecondary
+                                        )
+                                    }
                                 }
-                            },
-                            title = {
-                                Column {
-                                    Text(
-                                        parametres.nomCommercial,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        "${currentUser.nom} (${RoleUtilisateur.fromString(currentUser.role).libelle})",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted
-                                    )
-                                }
-                            },
-                            actions = {
-                                IconButton(
-                                    onClick = viewModel::logout,
-                                    modifier = Modifier.testTag("topbar_logout_button")
-                                ) {
-                                    Icon(
-                                        Icons.AutoMirrored.Filled.Logout,
-                                        contentDescription = "Déconnexion",
-                                        tint = TextSecondary
-                                    )
-                                }
-                            }
-                        )
+                            )
+                            HorizontalDivider(color = AppOutlineSubtle)
+                        }
                     },
                     bottomBar = {
-                        NavigationBar(
-                            containerColor = AppSurface,
-                            windowInsets = WindowInsets.navigationBars
-                        ) {
-                            visibleDestinations.filter { it.route in bottomRoutes }.forEach { dest ->
-                                val shortLabel = when (dest.route) {
-                                    AppRoutes.DASHBOARD -> "Accueil"
-                                    AppRoutes.NEW_SALE -> "Vente"
-                                    AppRoutes.STOCKS -> "Stocks"
-                                    else -> "Historique"
+                        Column {
+                            HorizontalDivider(color = AppOutlineSubtle)
+                            NavigationBar(
+                                containerColor = AppSurface,
+                                tonalElevation = 0.dp,
+                                windowInsets = WindowInsets.navigationBars
+                            ) {
+                                visibleDestinations.filter { it.route in bottomRoutes }.forEach { dest ->
+                                    val shortLabel = when (dest.route) {
+                                        AppRoutes.DASHBOARD -> "Accueil"
+                                        AppRoutes.NEW_SALE -> "Vente"
+                                        AppRoutes.STOCKS -> "Stocks"
+                                        else -> "Historique"
+                                    }
+                                    NavigationBarItem(
+                                        selected = currentRoute == dest.route,
+                                        onClick = { navigateTo(dest.route) },
+                                        icon = { Icon(dest.icon, contentDescription = dest.label) },
+                                        label = { Text(shortLabel, maxLines = 1) },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = ActionBlueDark,
+                                            selectedTextColor = ActionBlueDark,
+                                            indicatorColor = ActionBlueSoft,
+                                            unselectedIconColor = TextSecondary,
+                                            unselectedTextColor = TextSecondary
+                                        ),
+                                        modifier = Modifier.testTag("bottom_nav_${dest.route}")
+                                    )
                                 }
-                                NavigationBarItem(
-                                    selected = currentRoute == dest.route,
-                                    onClick = { navigateTo(dest.route) },
-                                    icon = { Icon(dest.icon, contentDescription = dest.label) },
-                                    label = { Text(shortLabel, maxLines = 1) },
-                                    modifier = Modifier.testTag("bottom_nav_${dest.route}")
-                                )
                             }
                         }
                     }
@@ -336,8 +374,7 @@ private fun AuthenticatedShell(
                             completedReceipt = completedReceipt,
                             rapportDebut = rapportDebut,
                             rapportFin = rapportFin,
-                            rapportLignes = rapportLignes,
-                            rapportAnnulations = rapportAnnulations,
+                            rapportComplet = rapportComplet,
                             onNavigate = ::navigateTo
                         )
                     }
@@ -365,52 +402,78 @@ private fun DrawerContentBody(
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = Color.Transparent
         ) {
-            if (logoUri.isNotBlank()) {
-                AsyncImage(
-                    model = logoUri,
-                    contentDescription = "Logo magasin",
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Surface(
-                    color = ActionBlue,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Storefront, contentDescription = null, tint = AppSurface)
+            Row(
+                modifier = Modifier
+                    .background(Brush.linearGradient(listOf(SlateNavy, CobaltDeep, ActionBlue)))
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (logoUri.isNotBlank()) {
+                    AsyncImage(
+                        model = logoUri,
+                        contentDescription = "Logo magasin",
+                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Storefront, contentDescription = null, tint = Color.White)
+                        }
+                    }
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(
+                        text = storeName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Surface(
+                        color = Color.White.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(999.dp)
+                    ) {
+                        Text(
+                            text = "${currentUser.nom} • ${RoleUtilisateur.fromString(currentUser.role).libelle}",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(storeName, style = MaterialTheme.typography.titleMedium, color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "${currentUser.nom} • ${RoleUtilisateur.fromString(currentUser.role).libelle}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
         }
 
-        HorizontalDivider(color = AppOutlineSubtle)
         Spacer(modifier = Modifier.height(4.dp))
 
         destinations.forEach { dest ->
             NavigationDrawerItem(
-                label = { Text(dest.label) },
+                label = { Text(dest.label, fontWeight = if (currentRoute == dest.route) FontWeight.SemiBold else FontWeight.Medium) },
                 selected = currentRoute == dest.route,
                 onClick = { onSelectRoute(dest.route) },
                 icon = { Icon(dest.icon, contentDescription = null) },
+                colors = NavigationDrawerItemDefaults.colors(
+                    selectedContainerColor = ActionBlueSoft,
+                    selectedIconColor = ActionBlueDark,
+                    selectedTextColor = ActionBlueDark,
+                    unselectedIconColor = TextSecondary,
+                    unselectedTextColor = TextPrimary
+                ),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.testTag("drawer_nav_${dest.route}")
             )
         }
@@ -418,10 +481,11 @@ private fun DrawerContentBody(
         Spacer(modifier = Modifier.weight(1f))
         HorizontalDivider(color = AppOutlineSubtle)
         NavigationDrawerItem(
-            label = { Text("Déconnexion", color = RuptureText) },
+            label = { Text("Déconnexion", color = RuptureText, fontWeight = FontWeight.Medium) },
             selected = false,
             onClick = onLogout,
             icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = RuptureText) },
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier.testTag("drawer_logout_button")
         )
     }
@@ -453,8 +517,7 @@ private fun AppNavHost(
     completedReceipt: com.example.data.VenteDetailComplet?,
     rapportDebut: String,
     rapportFin: String,
-    rapportLignes: List<com.example.data.RapportProduitLigne>,
-    rapportAnnulations: Pair<Int, Long>,
+    rapportComplet: RapportPeriodeComplet,
     onNavigate: (String) -> Unit
 ) {
     NavHost(
@@ -548,8 +611,7 @@ private fun AppNavHost(
                     parametres = parametres,
                     dateDebut = rapportDebut,
                     dateFin = rapportFin,
-                    lignes = rapportLignes,
-                    annulationsResume = rapportAnnulations,
+                    rapport = rapportComplet,
                     produits = produits,
                     onLoadReport = viewModel::loadReport,
                     onExportReportCsv = viewModel::exportReportCsvToUri,

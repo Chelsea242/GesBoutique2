@@ -40,7 +40,7 @@ fun LoginSetupScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(Color(0xFFEFF6FF), AppBackground)
+                    colors = listOf(ActionBlueSoft.copy(alpha = 0.55f), AppBackground)
                 )
             )
             .safeDrawingPadding(),
@@ -60,20 +60,25 @@ fun LoginSetupScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // En-tête marque sobre
+            // En-tête marque Slate-Cobalt
             Surface(
-                color = ActionBlue,
-                shape = RoundedCornerShape(18.dp),
-                shadowElevation = 4.dp
+                color = Color.Transparent,
+                shape = RoundedCornerShape(20.dp),
+                shadowElevation = 6.dp
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Storefront,
-                    contentDescription = "CaisseStock",
+                Box(
                     modifier = Modifier
-                        .padding(16.dp)
-                        .size(36.dp),
-                    tint = Color.White
-                )
+                        .background(Brush.linearGradient(listOf(SlateNavy, CobaltDeep, ActionBlue)))
+                        .padding(18.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Storefront,
+                        contentDescription = "CaisseStock",
+                        modifier = Modifier.size(36.dp),
+                        tint = Color.White
+                    )
+                }
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -99,7 +104,7 @@ fun LoginSetupScreen(
                 color = AppSurface,
                 shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(1.dp, AppOutlineSubtle),
-                shadowElevation = 2.dp
+                shadowElevation = 3.dp
             ) {
                 if (!hasAnyUser) {
                     InitialAdminForm(
@@ -118,11 +123,29 @@ fun LoginSetupScreen(
                 }
             }
 
-            Text(
-                text = "Fonctionnement 100 % hors ligne • Devise : FCFA (XAF)",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted
-            )
+            Surface(
+                color = AppSurface,
+                shape = RoundedCornerShape(999.dp),
+                border = BorderStroke(1.dp, AppOutlineSubtle)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.CloudOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = ActionBlue
+                    )
+                    Text(
+                        text = "Fonctionnement 100 % hors ligne • FCFA (XAF)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
+            }
         }
     }
 }

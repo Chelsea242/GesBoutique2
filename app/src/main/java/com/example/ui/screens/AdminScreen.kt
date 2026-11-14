@@ -4,11 +4,15 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -18,16 +22,27 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.data.*
 import com.example.domain.Formatters
-import com.example.ui.components.SectionHeader
+import com.example.ui.components.*
 import com.example.ui.theme.*
+
+private enum class AuditCategoryFilter(val libelle: String) {
+    TOUT("Tout"),
+    CONNEXIONS("Connexions"),
+    VENTES("Ventes"),
+    STOCKS("Stocks & Produits"),
+    SYSTEME("Système")
+}
 
 @Composable
 fun AdminScreen(
@@ -51,79 +66,191 @@ fun AdminScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0=Comptes, 1=Magasin, 2=Sauvegardes, 3=Audit
 
+    LaunchedEffect(Unit) {
+        onRefreshBackups()
+    }
     LaunchedEffect(selectedTab) {
         if (selectedTab == 2) onRefreshBackups()
     }
 
+    val activeUsersCount = remember(utilisateurs) { utilisateurs.count { it.actif } }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        SectionHeader(
-            title = "Administration",
-            subtitle = "Comptes, paramètres magasin, sauvegardes et traçabilité"
-        )
+        // Bannière exécutive Administration
+        HeroGradientCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (parametres.logoUri.isNotBlank()) {
+                    AsyncImage(
+                        model = parametres.logoUri,
+                        contentDescription = "Logo du magasin",
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(46.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.AdminPanelSettings, contentDescription = null, tint = Color.White)
+                        }
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Administration",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White
+                    )
+                    Text(
+                        text = parametres.nomCommercial.ifBlank { "Mon Magasin" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
 
-        ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Comptes") },
-                modifier = Modifier.testTag("admin_tab_users")
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Magasin") },
-                modifier = Modifier.testTag("admin_tab_store")
-            )
-            Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
-                text = { Text("Sauvegardes") },
-                modifier = Modifier.testTag("admin_tab_backups")
-            )
-            Tab(
-                selected = selectedTab == 3,
-                onClick = { selectedTab = 3 },
-                text = { Text("Journal d'audit") },
-                modifier = Modifier.testTag("admin_tab_audit")
-            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AdminBannerChip(
+                    label = "$activeUsersCount/${utilisateurs.size} actif(s)",
+                    dotColor = EmeraldAccent,
+                    modifier = Modifier.weight(1f)
+                )
+                AdminBannerChip(
+                    label = if (parametres.sauvegardeAutoActive) "Auto-backup ON" else "Auto-backup OFF",
+                    dotColor = if (parametres.sauvegardeAutoActive) EmeraldAccent else AmberAccent,
+                    modifier = Modifier.weight(1.15f)
+                )
+                AdminBannerChip(
+                    label = "${backups.size} copie(s)",
+                    dotColor = CobaltBright,
+                    modifier = Modifier.weight(0.85f)
+                )
+            }
         }
 
-        when (selectedTab) {
-            0 -> UsersTab(
-                currentUser = currentUser,
-                utilisateurs = utilisateurs,
-                onCreateUser = onCreateUser,
-                onToggleUserActive = onToggleUserActive,
-                onResetPassword = onResetPassword
+        // Onglets tactiles en pilules
+        SegmentedPillTabs(
+            items = listOf(
+                PillTabItem(
+                    label = "Comptes",
+                    icon = Icons.Filled.Group,
+                    badge = "${utilisateurs.size}",
+                    testTag = "admin_tab_users"
+                ),
+                PillTabItem(
+                    label = "Magasin",
+                    icon = Icons.Filled.Storefront,
+                    testTag = "admin_tab_store"
+                ),
+                PillTabItem(
+                    label = "Sauvegardes",
+                    icon = Icons.Filled.Backup,
+                    badge = "${backups.size}",
+                    testTag = "admin_tab_backups"
+                ),
+                PillTabItem(
+                    label = "Audit",
+                    icon = Icons.Filled.History,
+                    badge = "${audits.size}",
+                    testTag = "admin_tab_audit"
+                )
+            ),
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it }
+        )
+
+        AnimatedContent(
+            targetState = selectedTab,
+            modifier = Modifier.weight(1f),
+            label = "adminTabContent"
+        ) { tab ->
+            when (tab) {
+                0 -> UsersTab(
+                    currentUser = currentUser,
+                    utilisateurs = utilisateurs,
+                    onCreateUser = onCreateUser,
+                    onToggleUserActive = onToggleUserActive,
+                    onResetPassword = onResetPassword
+                )
+                1 -> StoreSettingsTab(
+                    parametres = parametres,
+                    onSaveSettings = onSaveSettings,
+                    onLogoPicked = onLogoPicked,
+                    onLoadDemoDataset = onLoadDemoDataset
+                )
+                2 -> BackupsTab(
+                    parametres = parametres,
+                    backups = backups,
+                    onCreateManualBackup = onCreateManualBackup,
+                    onExportBackup = onExportBackup,
+                    onRestoreLocalBackup = onRestoreLocalBackup,
+                    onRestoreExternalBackup = onRestoreExternalBackup,
+                    onResetDatabaseToBlank = onResetDatabaseToBlank
+                )
+                else -> AuditTab(
+                    audits = audits,
+                    fuseauHoraire = parametres.fuseauHoraire
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminBannerChip(
+    label: String,
+    dotColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = Color.White.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
             )
-            1 -> StoreSettingsTab(
-                parametres = parametres,
-                onSaveSettings = onSaveSettings,
-                onLogoPicked = onLogoPicked,
-                onLoadDemoDataset = onLoadDemoDataset
-            )
-            2 -> BackupsTab(
-                parametres = parametres,
-                backups = backups,
-                onCreateManualBackup = onCreateManualBackup,
-                onExportBackup = onExportBackup,
-                onRestoreLocalBackup = onRestoreLocalBackup,
-                onRestoreExternalBackup = onRestoreExternalBackup,
-                onResetDatabaseToBlank = onResetDatabaseToBlank
-            )
-            3 -> AuditTab(
-                audits = audits,
-                fuseauHoraire = parametres.fuseauHoraire
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun UsersTab(
     currentUser: UtilisateurEntity,
@@ -135,16 +262,57 @@ private fun UsersTab(
     var showCreateDialog by remember { mutableStateOf(false) }
     var resetTarget by remember { mutableStateOf<UtilisateurEntity?>(null) }
 
+    val adminCount = remember(utilisateurs) {
+        utilisateurs.count { it.role == RoleUtilisateur.ADMINISTRATEUR.name }
+    }
+    val sellerCount = remember(utilisateurs) {
+        utilisateurs.count { it.role == RoleUtilisateur.VENDEUR.name }
+    }
+
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Barre de synthèse + bouton création
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("${utilisateurs.size} compte(s)", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+            Surface(
+                modifier = Modifier.weight(1f),
+                color = AppSurface,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, AppOutlineSubtle)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Admins", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                        Text(
+                            "$adminCount",
+                            style = MaterialTheme.typography.titleSmall.copy(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold),
+                            color = ActionBlueDark
+                        )
+                    }
+                    Box(modifier = Modifier.width(1.dp).height(24.dp).background(AppOutlineSubtle))
+                    Column {
+                        Text("Vendeurs", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                        Text(
+                            "$sellerCount",
+                            style = MaterialTheme.typography.titleSmall.copy(fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold),
+                            color = TextPrimary
+                        )
+                    }
+                }
+            }
+
             Button(
                 onClick = { showCreateDialog = true },
-                modifier = Modifier.minimumInteractiveComponentSize().testTag("create_user_button")
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .testTag("create_user_button"),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -152,52 +320,145 @@ private fun UsersTab(
             }
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             items(utilisateurs, key = { it.id }) { u ->
                 val roleEnum = RoleUtilisateur.fromString(u.role)
+                val isAdminRole = roleEnum == RoleUtilisateur.ADMINISTRATEUR
+                val isSelf = u.id == currentUser.id
+
                 Surface(
-                    color = AppSurface,
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, AppOutlineSubtle)
+                    color = if (u.actif) AppSurface else AppSurfaceVariant.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, if (isSelf) ActionBlue.copy(alpha = 0.35f) else AppOutlineSubtle)
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(u.nom, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                                if (u.id == currentUser.id) {
-                                    Surface(color = ActionBlueSoft, shape = RoundedCornerShape(6.dp)) {
-                                        Text("Connecté", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = ActionBlueDark)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            InitialsAvatar(
+                                name = u.nom,
+                                containerColor = when {
+                                    !u.actif -> ArchiveBackground
+                                    isAdminRole -> ActionBlueSoft
+                                    else -> DisponibleBackground
+                                },
+                                contentColor = when {
+                                    !u.actif -> ArchiveText
+                                    isAdminRole -> ActionBlueDark
+                                    else -> DisponibleText
+                                }
+                            )
+
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = u.nom,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = TextPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    if (isSelf) {
+                                        Surface(color = ActionBlueSoft, shape = RoundedCornerShape(999.dp)) {
+                                            Text(
+                                                text = "Connecté",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = ActionBlueDark
+                                            )
+                                        }
                                     }
                                 }
+
+                                Text(
+                                    text = "@${u.identifiant}",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono),
+                                    color = TextSecondary
+                                )
                             }
-                            Text(
-                                "${u.identifiant} • ${roleEnum.libelle}",
-                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono),
-                                color = TextSecondary
-                            )
-                            Text(
-                                if (u.actif) "Actif" else "Désactivé",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (u.actif) DisponibleText else RuptureText
-                            )
+
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Surface(
+                                    color = if (isAdminRole) ActionBlueSoft else AppSurfaceVariant,
+                                    shape = RoundedCornerShape(999.dp)
+                                ) {
+                                    Text(
+                                        text = roleEnum.libelle,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isAdminRole) ActionBlueDark else TextSecondary
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(if (u.actif) DisponibleText else RuptureText)
+                                    )
+                                    Text(
+                                        text = if (u.actif) "Actif" else "Désactivé",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (u.actif) DisponibleText else RuptureText
+                                    )
+                                }
+                            }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedButton(onClick = { resetTarget = u }) {
+                        HorizontalDivider(color = AppOutlineSubtle)
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { resetTarget = u },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.minimumInteractiveComponentSize()
+                            ) {
+                                Icon(Icons.Filled.Key, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text("Mot de passe")
                             }
                             OutlinedButton(
                                 onClick = { onToggleUserActive(u.id, !u.actif) },
+                                shape = RoundedCornerShape(10.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(
                                     contentColor = if (u.actif) RuptureText else DisponibleText
-                                )
+                                ),
+                                border = BorderStroke(1.dp, if (u.actif) RuptureBorder else DisponibleBorder),
+                                modifier = Modifier.minimumInteractiveComponentSize()
                             ) {
+                                Icon(
+                                    imageVector = if (u.actif) Icons.Filled.PersonOff else Icons.Filled.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(if (u.actif) "Désactiver" else "Réactiver")
                             }
                         }
@@ -240,6 +501,7 @@ private fun UsersTab(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("new_user_pwd_input")
                     )
+                    Text("Rôle attribué", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         RoleUtilisateur.entries.forEach { r ->
                             FilterChip(
@@ -278,7 +540,7 @@ private fun UsersTab(
         var pwdErr by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { resetTarget = null },
-            title = { Text("Réinitialiser le mot de passe") },
+            title = { Text("Mot de passe — ${resetTarget!!.nom}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(
@@ -309,6 +571,7 @@ private fun UsersTab(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun StoreSettingsTab(
     parametres: ParametresMagasin,
@@ -321,6 +584,10 @@ private fun StoreSettingsTab(
     var tel by remember(parametres.telephone) { mutableStateOf(parametres.telephone) }
     var fuseau by remember(parametres.fuseauHoraire) { mutableStateOf(parametres.fuseauHoraire) }
     var autoBackup by remember(parametres.sauvegardeAutoActive) { mutableStateOf(parametres.sauvegardeAutoActive) }
+
+    val timezonePresets = remember {
+        listOf("Africa/Brazzaville", "Africa/Douala", "Africa/Libreville", "Africa/Kinshasa")
+    }
 
     // Zero-permission Photo Picker (Play Policy compliant)
     val photoPicker = rememberLauncherForActivityResult(
@@ -335,48 +602,117 @@ private fun StoreSettingsTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Section 1 : Aperçu carte magasin + Logo
+        Surface(
+            color = AppSurface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, AppOutlineSubtle)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Aperçu de l'en-tête ticket", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                    Surface(color = ActionBlueSoft, shape = RoundedCornerShape(999.dp)) {
+                        Text(
+                            text = "Devise : FCFA (${parametres.devise})",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ActionBlueDark
+                        )
+                    }
+                }
+
+                Surface(
+                    color = AppBackground,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, AppOutlineSubtle)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (parametres.logoUri.isNotBlank()) {
+                            AsyncImage(
+                                model = parametres.logoUri,
+                                contentDescription = "Logo du magasin",
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(12.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Surface(
+                                color = ActionBlueSoft,
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Filled.Storefront, contentDescription = null, tint = ActionBlue)
+                                }
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = nom.ifBlank { "Mon Magasin" },
+                                style = MaterialTheme.typography.titleMedium,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = adresse.ifBlank { "Adresse non renseignée" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (tel.isNotBlank()) {
+                                Text(
+                                    text = "Tél. $tel",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono),
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.minimumInteractiveComponentSize()
+                ) {
+                    Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Choisir un logo (facultatif)")
+                }
+            }
+        }
+
+        // Section 2 : Coordonnées du magasin
         Surface(
             color = AppSurface,
             shape = RoundedCornerShape(16.dp),
             border = BorderStroke(1.dp, AppOutlineSubtle)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Identité du magasin", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (parametres.logoUri.isNotBlank()) {
-                        AsyncImage(
-                            model = parametres.logoUri,
-                            contentDescription = "Logo du magasin",
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Surface(
-                            color = ActionBlueSoft,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.size(56.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Filled.Storefront, contentDescription = null, tint = ActionBlue)
-                            }
-                        }
-                    }
-                    OutlinedButton(onClick = {
-                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }) {
-                        Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Choisir un logo (facultatif)")
-                    }
-                }
+                Text("Identité & Coordonnées", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
 
                 OutlinedTextField(
                     value = nom,
                     onValueChange = { nom = it },
                     label = { Text("Nom commercial *") },
+                    leadingIcon = { Icon(Icons.Filled.Badge, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("store_name_input")
                 )
@@ -384,6 +720,7 @@ private fun StoreSettingsTab(
                     value = adresse,
                     onValueChange = { adresse = it },
                     label = { Text("Adresse") },
+                    leadingIcon = { Icon(Icons.Filled.LocationOn, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -391,28 +728,66 @@ private fun StoreSettingsTab(
                     value = tel,
                     onValueChange = { tel = it },
                     label = { Text("Téléphone") },
+                    leadingIcon = { Icon(Icons.Filled.Phone, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+        }
+
+        // Section 3 : Fuseau horaire & Sauvegarde auto
+        Surface(
+            color = AppSurface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, AppOutlineSubtle)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Horloge métier & Sauvegarde", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    timezonePresets.forEach { preset ->
+                        FilterChip(
+                            selected = fuseau == preset,
+                            onClick = { fuseau = preset },
+                            label = { Text(preset.substringAfter("/")) }
+                        )
+                    }
+                }
+
                 OutlinedTextField(
                     value = fuseau,
                     onValueChange = { fuseau = it },
                     label = { Text("Fuseau horaire (IANA)") },
-                    supportingText = { Text("Ex. Africa/Brazzaville, Africa/Douala, Africa/Libreville") },
+                    supportingText = { Text("Détermine le découpage 00h00 → 00h00 des journées métier") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    color = AppBackground,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, AppOutlineSubtle)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Sauvegarde automatique quotidienne", style = MaterialTheme.typography.titleSmall)
-                        Text("Au premier démarrage du jour (7 dernières conservées)", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Sauvegarde automatique quotidienne", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "Au premier démarrage du jour (7 dernières conservées)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted
+                            )
+                        }
+                        Switch(checked = autoBackup, onCheckedChange = { autoBackup = it })
                     }
-                    Switch(checked = autoBackup, onCheckedChange = { autoBackup = it })
                 }
 
                 Button(
@@ -427,13 +802,20 @@ private fun StoreSettingsTab(
                             )
                         )
                     },
-                    modifier = Modifier.fillMaxWidth().height(48.dp).testTag("save_store_settings_button")
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("save_store_settings_button")
                 ) {
+                    Icon(Icons.Filled.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Enregistrer les paramètres")
                 }
             }
         }
 
+        // Section 4 : Jeu de données de démonstration
         Surface(
             color = AppSurface,
             shape = RoundedCornerShape(16.dp),
@@ -448,14 +830,23 @@ private fun StoreSettingsTab(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Données de démonstration", style = MaterialTheme.typography.titleSmall)
-                    Text("Ajoute des produits exemples (disponibles, faibles et en rupture) s'ils n'existent pas.", style = MaterialTheme.typography.bodySmall, color = TextMuted)
+                    Text(
+                        "Ajoute des produits exemples (disponibles, faibles et en rupture) s'ils n'existent pas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted
+                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedButton(onClick = onLoadDemoDataset) {
+                Spacer(modifier = Modifier.width(10.dp))
+                OutlinedButton(
+                    onClick = onLoadDemoDataset,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.minimumInteractiveComponentSize()
+                ) {
                     Text("Charger")
                 }
             }
         }
+        Spacer(modifier = Modifier.height(12.dp))
     }
 }
 
@@ -487,77 +878,174 @@ private fun BackupsTab(
         if (uri != null) onRestoreExternalBackup(uri)
     }
 
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Surface(
-            color = AppSurface,
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, AppOutlineSubtle)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Sauvegarde SQLite locale", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                Text(
-                    "Dernière auto : ${parametres.derniereSauvegardeAutoDate.ifBlank { "Aucune" }} • ${parametres.derniereSauvegardeAutoStatut.ifBlank { "En attente" }}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onCreateManualBackup,
-                        modifier = Modifier.weight(1f).minimumInteractiveComponentSize().testTag("manual_backup_button")
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Carte statut & actions principales
+        item {
+            Surface(
+                color = AppSurface,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, AppOutlineSubtle)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Sauvegarder")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Protection SQLite locale", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                            Text(
+                                "Dernière auto : ${parametres.derniereSauvegardeAutoDate.ifBlank { "Aucune" }} • ${parametres.derniereSauvegardeAutoStatut.ifBlank { "En attente" }}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                        Surface(
+                            color = if (parametres.sauvegardeAutoActive) DisponibleBackground else StockFaibleBackground,
+                            shape = RoundedCornerShape(999.dp)
+                        ) {
+                            Text(
+                                text = if (parametres.sauvegardeAutoActive) "Auto active" else "Manuel",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (parametres.sauvegardeAutoActive) DisponibleText else StockFaibleText
+                            )
+                        }
                     }
-                    OutlinedButton(
-                        onClick = { importLauncher.launch(arrayOf("*/*")) },
-                        modifier = Modifier.weight(1f).minimumInteractiveComponentSize().testTag("restore_external_button")
-                    ) {
-                        Icon(Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Importer (.db)")
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onCreateManualBackup,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .minimumInteractiveComponentSize()
+                                .testTag("manual_backup_button")
+                        ) {
+                            Icon(Icons.Filled.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sauvegarder")
+                        }
+                        OutlinedButton(
+                            onClick = { importLauncher.launch(arrayOf("*/*")) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .minimumInteractiveComponentSize()
+                                .testTag("restore_external_button")
+                        ) {
+                            Icon(Icons.Filled.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Importer (.db)")
+                        }
                     }
                 }
             }
         }
 
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
+        // En-tête liste
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Sauvegardes locales (${backups.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextSecondary
+                )
+                Text(
+                    text = "Vérification PRAGMA avant restauration",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
+            }
+        }
+
+        if (backups.isEmpty()) {
+            item {
+                EmptyStateCard(
+                    icon = Icons.Filled.CloudOff,
+                    title = "Aucune sauvegarde locale",
+                    description = "Créez une sauvegarde manuelle pour sécuriser vos ventes et votre catalogue."
+                )
+            }
+        } else {
             items(backups, key = { it.cheminAbsolu }) { b ->
                 Surface(
                     color = AppSurface,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, AppOutlineSubtle)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    color = if (b.estAutomatique) ActionBlueSoft else DisponibleBackground,
+                                    shape = RoundedCornerShape(999.dp)
+                                ) {
+                                    Text(
+                                        text = if (b.estAutomatique) "Auto" else "Manuelle",
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (b.estAutomatique) ActionBlueDark else DisponibleText
+                                    )
+                                }
+                                Text(
+                                    text = "${(b.tailleOctets / 1024).coerceAtLeast(1)} Ko",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = JetBrainsMono),
+                                    color = TextMuted
+                                )
+                            }
                             Text(
-                                b.nomFichier,
+                                text = b.nomFichier,
                                 style = MaterialTheme.typography.titleSmall.copy(fontFamily = JetBrainsMono),
-                                color = TextPrimary
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "${Formatters.formatDateTime(b.dateModificationMillis, parametres.fuseauHoraire)} • ${(b.tailleOctets / 1024).coerceAtLeast(1)} Ko • ${if (b.estAutomatique) "Auto" else "Manuelle"}",
+                                text = Formatters.formatDateTime(b.dateModificationMillis, parametres.fuseauHoraire),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextMuted
                             )
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            IconButton(onClick = {
-                                pendingExportPath = b.cheminAbsolu
-                                exportLauncher.launch(b.nomFichier)
-                            }) {
-                                Icon(Icons.Filled.FileUpload, contentDescription = "Copier sur support externe")
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    pendingExportPath = b.cheminAbsolu
+                                    exportLauncher.launch(b.nomFichier)
+                                }
+                            ) {
+                                Icon(Icons.Filled.FileUpload, contentDescription = "Copier sur support externe", tint = ActionBlue)
                             }
-                            OutlinedButton(onClick = { pendingRestoreLocal = b }) {
+                            OutlinedButton(
+                                onClick = { pendingRestoreLocal = b },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.minimumInteractiveComponentSize()
+                            ) {
                                 Text("Restaurer")
                             }
                         }
@@ -566,33 +1054,49 @@ private fun BackupsTab(
             }
         }
 
-        Surface(
-            color = RuptureBackground.copy(alpha = 0.5f),
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.dp, RuptureBorder)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        // Zone sensible : réinitialisation à zéro
+        item {
+            Surface(
+                color = RuptureBackground.copy(alpha = 0.55f),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, RuptureBorder)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Recommencer à zéro (base vierge)", style = MaterialTheme.typography.titleSmall, color = RuptureText)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = RuptureText)
+                        Text(
+                            text = "Zone sensible — Recommencer à zéro",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = RuptureText
+                        )
+                    }
                     Text(
-                        "Crée d'abord une sauvegarde de sécurité puis réinitialise le magasin à l'écran de configuration initiale.",
+                        text = "Crée d'abord une sauvegarde de sécurité puis réinitialise le magasin à l'écran de configuration initiale (base vierge).",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedButton(
-                    onClick = { showResetConfirm = true },
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RuptureText),
-                    modifier = Modifier.testTag("reset_database_button")
-                ) {
-                    Text("Réinitialiser")
+                    OutlinedButton(
+                        onClick = { showResetConfirm = true },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = RuptureText),
+                        border = BorderStroke(1.dp, RuptureBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .minimumInteractiveComponentSize()
+                            .testTag("reset_database_button")
+                    ) {
+                        Icon(Icons.Filled.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Réinitialiser à zéro")
+                    }
                 }
             }
         }
@@ -648,37 +1152,177 @@ private fun AuditTab(
     audits: List<AuditAvecAuteur>,
     fuseauHoraire: String
 ) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(audits, key = { it.id }) { a ->
-            Surface(
-                color = AppSurface,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, AppOutlineSubtle)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(a.action, style = MaterialTheme.typography.labelLarge.copy(fontFamily = JetBrainsMono), color = ActionBlue)
-                        Text(
-                            Formatters.formatDateTime(a.dateHeureUtc, fuseauHoraire),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMuted
-                        )
+    var search by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf(AuditCategoryFilter.TOUT) }
+
+    val filteredAudits = remember(audits, search, selectedCategory) {
+        audits.filter { a ->
+            val catMatch = when (selectedCategory) {
+                AuditCategoryFilter.TOUT -> true
+                AuditCategoryFilter.CONNEXIONS -> a.action.contains("CONNEXION") || a.action.contains("UTILISATEUR") || a.action.contains("MOT_DE_PASSE")
+                AuditCategoryFilter.VENTES -> a.action.contains("VENTE") || a.action.contains("ANNULATION")
+                AuditCategoryFilter.STOCKS -> a.action.contains("PRODUIT") || a.action.contains("STOCK") || a.action.contains("INVENTAIRE") || a.action.contains("CATEGORIE") || a.action.contains("REAPPRO")
+                AuditCategoryFilter.SYSTEME -> a.action.contains("PARAMETRES") || a.action.contains("SAUVEGARDE") || a.action.contains("RESTAURATION") || a.action.contains("DEMO")
+            }
+            val queryMatch = search.isBlank() ||
+                a.action.contains(search, ignoreCase = true) ||
+                a.details.contains(search, ignoreCase = true) ||
+                (a.auteurNom?.contains(search, ignoreCase = true) == true)
+            catMatch && queryMatch
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedTextField(
+            value = search,
+            onValueChange = { search = it },
+            placeholder = { Text("Filtrer par action, détail ou auteur...") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (search.isNotEmpty()) {
+                    IconButton(onClick = { search = "" }) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Effacer")
                     }
-                    Text(a.details, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
-                    Text("Auteur : ${a.auteurNom ?: "Système"}", style = MaterialTheme.typography.labelSmall, color = TextMuted)
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(AuditCategoryFilter.entries) { cat ->
+                FilterChip(
+                    selected = selectedCategory == cat,
+                    onClick = { selectedCategory = cat },
+                    label = { Text(cat.libelle) }
+                )
+            }
+        }
+
+        if (filteredAudits.isEmpty()) {
+            EmptyStateCard(
+                icon = Icons.Filled.History,
+                title = "Aucune trace correspondante",
+                description = "Aucune entrée du journal d'audit ne correspond à ce filtre."
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(filteredAudits, key = { it.id }) { a ->
+                    val styleSpec = auditVisualStyle(a.action)
+                    Surface(
+                        color = AppSurface,
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, AppOutlineSubtle)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .fillMaxHeight()
+                                    .background(styleSpec.accent)
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        color = styleSpec.badgeBg,
+                                        shape = RoundedCornerShape(999.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = styleSpec.icon,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp),
+                                                tint = styleSpec.accent
+                                            )
+                                            Text(
+                                                text = a.action,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontFamily = JetBrainsMono,
+                                                    fontWeight = FontWeight.SemiBold
+                                                ),
+                                                color = styleSpec.accent
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = Formatters.formatDateTime(a.dateHeureUtc, fuseauHoraire),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                Text(
+                                    text = a.details,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextPrimary
+                                )
+
+                                Text(
+                                    text = "Par ${a.auteurNom ?: "Système"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+private data class AuditVisualSpec(
+    val accent: Color,
+    val badgeBg: Color,
+    val icon: ImageVector
+)
+
+private fun auditVisualStyle(action: String): AuditVisualSpec = when {
+    action.contains("ANNULATION") || action.contains("ECHEC") -> AuditVisualSpec(
+        accent = RuptureText,
+        badgeBg = RuptureBackground,
+        icon = Icons.Filled.Cancel
+    )
+    action.contains("VENTE") -> AuditVisualSpec(
+        accent = DisponibleText,
+        badgeBg = DisponibleBackground,
+        icon = Icons.Filled.PointOfSale
+    )
+    action.contains("STOCK") || action.contains("INVENTAIRE") || action.contains("REAPPRO") -> AuditVisualSpec(
+        accent = StockFaibleText,
+        badgeBg = StockFaibleBackground,
+        icon = Icons.Filled.Warehouse
+    )
+    action.contains("CONNEXION") -> AuditVisualSpec(
+        accent = IndigoAccent,
+        badgeBg = ActionBlueSoft,
+        icon = Icons.Filled.Login
+    )
+    else -> AuditVisualSpec(
+        accent = ActionBlueDark,
+        badgeBg = ActionBlueSoft,
+        icon = Icons.Filled.AdminPanelSettings
+    )
 }

@@ -134,6 +134,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val rapportLignes: StateFlow<List<RapportProduitLigne>> = _rapportLignes.asStateFlow()
     private val _rapportAnnulations = MutableStateFlow(0 to 0L)
     val rapportAnnulations: StateFlow<Pair<Int, Long>> = _rapportAnnulations.asStateFlow()
+    private val _rapportComplet = MutableStateFlow(RapportPeriodeComplet())
+    val rapportComplet: StateFlow<RapportPeriodeComplet> = _rapportComplet.asStateFlow()
 
     // Auth UI error
     private val _authError = MutableStateFlow<String?>(null)
@@ -456,13 +458,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _rapportDebut.value = dateDebut
         _rapportFin.value = dateFin
         viewModelScope.launch {
-            when (val res = repository.getRapportPeriode(dateDebut, dateFin)) {
+            when (val res = repository.getRapportComplet(dateDebut, dateFin)) {
                 is ServiceResult.Succes -> {
-                    _rapportLignes.value = res.data
-                    val cancelRes = repository.getCancelledSummaryOnPeriod(dateDebut, dateFin)
-                    if (cancelRes is ServiceResult.Succes) {
-                        _rapportAnnulations.value = cancelRes.data
-                    }
+                    _rapportComplet.value = res.data
+                    _rapportLignes.value = res.data.lignesProduits
+                    _rapportAnnulations.value = res.data.nombreAnnulations to res.data.montantAnnulations
                 }
                 is ServiceResult.Erreur -> _feedback.tryEmit(FeedbackEvent(res.message, isError = true))
             }
