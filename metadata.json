@@ -1,0 +1,6 @@
+{
+  "name": "CaisseStock",
+  "description": "Gestion de magasin hors ligne : catalogue produits, suivi des stocks, caisse en FCFA XAF, tickets, rapports et sauvegardes locales SQLite.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
